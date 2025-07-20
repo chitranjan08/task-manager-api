@@ -1,9 +1,10 @@
+/* eslint-disable consistent-return */
+const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
-const mongoose = require('mongoose');
 
 const createTask = async (req, res, next) => {
   try {
@@ -22,7 +23,7 @@ const createTask = async (req, res, next) => {
       assignedTo: assignedUser._id,
       createdBy: req.user.userId,
       dueDate,
-      priority
+      priority,
     });
 
     logger.info(`✅ Task created and assigned to ${assignedToEmail} by ${req.user.userId}`);
@@ -30,9 +31,8 @@ const createTask = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Task created successfully',
-      task
+      task,
     });
-
   } catch (err) {
     logger.error('❌ Error creating task: %o', err);
     next(err);
@@ -44,13 +44,15 @@ const getTasks = async (req, res, next) => {
     const { role, userId } = req.user;
     const { email } = req.query; // optional for admin filter
 
-    let query = {};
+    const query = {};
 
     if (role === 'admin') {
       if (email) {
         const user = await User.findOne({ email }, { _id: 1 });
         if (!user) {
-          return next(new AppError('User not found for filtering', 404, ERROR_CODES.USER_NOT_FOUND));
+          return next(
+            new AppError('User not found for filtering', 404, ERROR_CODES.USER_NOT_FOUND)
+          );
         }
         query.assignedTo = user._id;
       }
@@ -60,48 +62,47 @@ const getTasks = async (req, res, next) => {
     }
 
     const tasks = await Task.aggregate([
-        {
-            $match:query
+      {
+        $match: query,
+      },
+      {
+        $lookup: {
+          from: 'users',
+          foreignField: '_id',
+          localField: 'assignedTo',
+          as: 'users',
         },
-        {
-            $lookup:{
-                from:"users",
-                foreignField:"_id",
-                localField:"assignedTo",
-                as:"users"
-            }
-        },
-        {
-            $unwind:"$users"
-        },
-       
-         {
-    $project: {
-      _id: 1,
-      title: 1,
-      description: 1,
-      priority: 1,
-      status: 1,
-      dueDate: 1,
-      createdAt: 1,
-      assignedTo: "$users.name",
-      email:"$users.email"
-    }
-  },
-        {
-            $sort:{
-                dueDate:-1
-            }
-        }
-    ])
+      },
+      {
+        $unwind: '$users',
+      },
 
-    console.log(tasks)
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          priority: 1,
+          status: 1,
+          dueDate: 1,
+          createdAt: 1,
+          assignedTo: '$users.name',
+          email: '$users.email',
+        },
+      },
+      {
+        $sort: {
+          dueDate: -1,
+        },
+      },
+    ]);
+
+    console.log(tasks);
     res.status(200).json({
       success: true,
       count: tasks.length,
-      tasks
+      tasks,
     });
-
   } catch (err) {
     logger.error('❌ Failed to get tasks: %o', err);
     next(err);
@@ -144,19 +145,22 @@ const updateTask = async (req, res, next) => {
     }
 
     // 5. Update task
-    const updated = await Task.findByIdAndUpdate(id, { $set: updates }, {
-      new: true,
-      runValidators: true
-    });
+    const updated = await Task.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     logger.info(`📝 Task ${id} updated by ${role} (${userId})`);
 
     res.status(200).json({
       success: true,
       message: 'Task updated successfully',
-      task: updated
+      task: updated,
     });
-
   } catch (err) {
     logger.error('❌ Update task error: %o', err);
     next(err);
@@ -174,7 +178,9 @@ const deleteTask = async (req, res, next) => {
 
     const task = await Task.findById(id);
     if (!task || task.isDeleted) {
-      return next(new AppError('Task not found or already deleted', 404, ERROR_CODES.TASK_NOT_FOUND));
+      return next(
+        new AppError('Task not found or already deleted', 404, ERROR_CODES.TASK_NOT_FOUND)
+      );
     }
 
     const isAdmin = role === 'admin';
@@ -191,9 +197,8 @@ const deleteTask = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Task deleted successfully'
+      message: 'Task deleted successfully',
     });
-
   } catch (err) {
     logger.error('❌ Delete task error: %o', err);
     next(err);
@@ -203,5 +208,5 @@ module.exports = {
   createTask,
   getTasks,
   updateTask,
-  deleteTask
+  deleteTask,
 };

@@ -12,16 +12,13 @@ const logger = createLogger({
   transports: [
     // Console output
     new transports.Console({
-      format: format.combine(
-        format.colorize(),
-        format.simple()
-      )
+      format: format.combine(format.colorize(), format.simple()),
     }),
-    
+
     // File logs
     new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new transports.File({ filename: 'logs/combined.log' })
-  ]
+    new transports.File({ filename: 'logs/combined.log' }),
+  ],
 });
 
 module.exports = logger;

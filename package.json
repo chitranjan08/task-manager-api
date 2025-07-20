@@ -4,7 +4,7 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js",
+    "dev": "nodemon app.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix"
   },
