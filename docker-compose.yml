@@ -1,23 +1,14 @@
-version: "3.8"
-
 services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - MONGO_URL=mongodb://mongo:27017/task-manager
-    depends_on:
-      - mongo
-    restart: always
-
   mongo:
     image: mongo:6
     ports:
       - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    restart: always
 
-volumes:
-  mongo-data:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    env_file:
+      - .env
