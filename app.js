@@ -34,6 +34,6 @@ app.use('/task', TaskRoutes);
 app.use('/auth', AuthRoutes);
 app.use(errorMiddleware); // Should be at the end
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server started on http://localhost:${PORT}`);
 });
