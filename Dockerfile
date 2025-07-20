@@ -2,13 +2,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app ./
+# Copy and install only what's needed
+COPY package*.json ./
+RUN npm install
 
-# Set environment variables
-ENV NODE_ENV=production
+# Copy the rest of the app source
+COPY . .
 
-# Expose the port your app runs on
 EXPOSE 3000
 
-# Start the server
-CMD [ "node", "app.js" ]
+CMD ["node", "app.js"]
