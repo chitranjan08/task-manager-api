@@ -3,3 +3,5 @@ npm-debug.log
 .env
 .logs
 .git
+Dockerfile
+docker-compose.yml
