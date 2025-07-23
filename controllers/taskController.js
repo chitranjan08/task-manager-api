@@ -5,13 +5,15 @@ const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
+const logActivity = require('../middlewares/activityLogger')
 
 const createTask = async (req, res, next) => {
   try {
-    const { title, description, assignedToEmail, dueDate, priority } = req.body;
+    console.log(req.body)
+    const { title, description, assignedTo, dueDate, priority } = req.body;
 
     // 🔍 Validate assigned user exists
-    const assignedUser = await User.findOne({ email: assignedToEmail });
+    const assignedUser = await User.findOne({ email: assignedTo });
     if (!assignedUser) {
       return next(new AppError('Assigned user not found', 404, ERROR_CODES.USER_NOT_FOUND));
     }
@@ -26,14 +28,20 @@ const createTask = async (req, res, next) => {
       priority,
     });
 
-    logger.info(`✅ Task created and assigned to ${assignedToEmail} by ${req.user.userId}`);
-
+    logger.info(`✅ Task created and assigned to ${assignedTo} by ${req.user.userId}`);
+    await logActivity({
+      userId: req.user._id,
+      action: 'CREATE_TASK',
+      description: `Task created: ${task.title}`,
+      req,
+    });
     res.status(201).json({
       success: true,
       message: 'Task created successfully',
       task,
     });
   } catch (err) {
+    console.log(err)
     logger.error('❌ Error creating task: %o', err);
     next(err);
   }
@@ -155,6 +163,12 @@ const updateTask = async (req, res, next) => {
     );
 
     logger.info(`📝 Task ${id} updated by ${role} (${userId})`);
+    await logActivity({
+      userId: req.user._id,
+      action: 'UPDATE_TASK',
+      description: `Task updated: ${task.title}`,
+      req,
+    });
 
     res.status(200).json({
       success: true,
@@ -194,7 +208,12 @@ const deleteTask = async (req, res, next) => {
     await task.save();
 
     logger.info(`🗑️ Task ${id} soft-deleted by ${role} (${userId})`);
-
+      await logActivity({
+      userId: req.user._id,
+      action: 'DELETE_TASK',
+      description: `Task deleted: ${task.title}`,
+      req,
+      });
     res.status(200).json({
       success: true,
       message: 'Task deleted successfully',

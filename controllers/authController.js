@@ -5,22 +5,21 @@ const { generateRefreshToken, generateAccessToken } = require('../utils/generate
 const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
-
+const logActivity = require('../middlewares/activityLogger')
 // eslint-disable-next-line consistent-return
 const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
     // Check if user already exist
-
+    
     const userExists = await UserModel.findOne({ email }, { email: 1 });
-    console.log(userExists);
+    
     if (userExists) {
       if (userExists) {
         return next(new AppError('User already exists', 400, ERROR_CODES.USER_ALREADY_EXISTS));
       }
     }
     const user = await UserModel.create({ name, email, password, role });
-
     const accessToken = generateAccessToken(user._id, user.role);
     const refreshToken = generateRefreshToken(user._id);
 
@@ -28,6 +27,12 @@ const registerUser = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
     logger.info(`New user registered: ${req.body.email}`);
+     await logActivity({
+      userId: user._id,
+      action: 'REGISTER',
+      description: 'User registered successfully',
+      req,
+    });
     res.status(201).json({
       message: 'User registered successfully',
       user: { name: user.name, email: user.email, role: user.role },
@@ -64,7 +69,12 @@ const loginUser = async (req, res, next) => {
     await user.save();
 
     logger.info(`🔐 User logged in: ${email}`);
-
+    await logActivity({
+    userId: user._id,
+    action: 'LOGIN',
+    description: 'User logged in successfully',
+    req,
+    });
     res
       .cookie('refreshToken', refreshToken, {
         httpOnly: true,
