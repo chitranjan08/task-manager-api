@@ -28,7 +28,7 @@ app.use(
 );
 app.get('/', (req, res) => {
   logger.info('Root path hit');
-  res.send('Task Manager API1 running very well');
+  res.send('Task Manager API running very well');
 });
 
 app.use('/task', TaskRoutes);
