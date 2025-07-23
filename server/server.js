@@ -4,7 +4,7 @@ const app = express();
 
 // Basic route to test server
 app.get('/', (req, res) => {
-  res.send('Task Manager API is running!');
+  res.send('Hello Chitranjan!');
 });
 
 module.exports = app;
