@@ -1,0 +1,27 @@
+name: Deploy to EC2 using deploy1.sh
+
+on:
+  push:
+    branches:
+      - main  # or whichever branch you deploy from
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add EC2 host to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run deploy1.sh on EC2
+        run: |
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'bash ~/task-manager-api/deploy1.sh'
