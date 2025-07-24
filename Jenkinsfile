@@ -16,7 +16,7 @@ pipeline {
       steps {
         sshagent(['ec2-ssh-key']) {
           bat """
-          echo Connecting to EC2 and running deploy script...
+          echo Connecting to EC2 and running deploy script....
           ssh -o StrictHostKeyChecking=no ubuntu@%ec2-host% "bash ~/task-manager-api/deploy1.sh"
           """
         }
