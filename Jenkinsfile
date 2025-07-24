@@ -17,7 +17,7 @@ pipeline {
         withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'KEY_FILE')]) {
           bat """
           echo Connecting to EC2 and running deploy script...
-          ssh -i "%KEY_FILE%" -o StrictHostKeyChecking=no ubuntu@%EC2_HOST% "bash ~/task-manager-api/deploy1.sh"
+          ssh -i -o "%KEY_FILE%" -o StrictHostKeyChecking=no ubuntu@%EC2_HOST% "bash ~/task-manager-api/deploy1.sh"
           """
         }
       }
