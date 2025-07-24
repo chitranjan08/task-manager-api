@@ -6,7 +6,7 @@ const connectDB = require('./config/db');
 const AuthRoutes = require('./routes/authRoutes');
 const TaskRoutes = require('./routes/taskRoutes');
 const LogRoutes = require('./routes/logRoutes');
-
+const { globalLimiter } = require("./middlewares/rateLimiter");
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const logger = require('./utils/logger');
 
@@ -34,6 +34,7 @@ app.get('/', (req, res) => {
 app.use('/task', TaskRoutes);
 app.use('/auth', AuthRoutes);
 app.use('/logs', LogRoutes);
+app.use(globalLimiter);
 app.use(errorMiddleware); // Should be at the end
 
 app.listen(PORT, '0.0.0.0', () => {
