@@ -45,9 +45,7 @@ const getAllLogs = async (req, res, next) => {
         as: "user",
       },
     },
-    {
-      $unwind: "$user",
-    },
+    
     
     {
       $project: {
@@ -57,9 +55,9 @@ const getAllLogs = async (req, res, next) => {
         createdAt: 1,
         ip: 1,
         userAgent: 1,
-        "user.email": 1,
-        "user.name": 1,
-        "user.role": 1,
+        email: "$user.email",
+        name: "$user.name",
+        role: "$user.role",
       },
     },
     {
@@ -68,7 +66,6 @@ const getAllLogs = async (req, res, next) => {
   ];
 
   const logs = await ActivityLog.aggregate(pipeline);
-
   res.json({
     success: true,
     count: logs.length,

@@ -16,9 +16,12 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId; // password required only if not Google login
+      },
       minlength: 6,
     },
+    googleId: String,
     role: {
       type: String,
       enum: ['admin', 'manager', 'user'],
@@ -29,9 +32,9 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔐 Hash password before saving
+// 🔐 Hash password only if present
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next(); // Skip if no password
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();

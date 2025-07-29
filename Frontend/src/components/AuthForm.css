@@ -1,0 +1,39 @@
+.auth-container {
+  width: 300px;
+  margin: 100px auto;
+  text-align: center;
+  background: #f2f2f2;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.auth-form input {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+.auth-form button {
+  padding: 10px 20px;
+  background-color: #3478f6;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.toggle-text {
+  margin-top: 15px;
+  font-size: 14px;
+}
+
+.toggle-text span {
+  color: #3478f6;
+  cursor: pointer;
+  margin-left: 5px;
+  text-decoration: underline;
+}

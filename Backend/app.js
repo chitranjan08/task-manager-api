@@ -1,4 +1,5 @@
 const bodyParser = require('body-parser');
+const passport = require("passport");
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const app = require('./server/server');
@@ -11,7 +12,7 @@ const errorMiddleware = require('./middlewares/errorMiddleware');
 const logger = require('./utils/logger');
 
 require('dotenv').config();
-
+require("./config/passport");
 const { PORT } = process.env;
 
 connectDB();
@@ -22,7 +23,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: 'http://localhost:3000', // or your frontend URL
+    origin: 'http://localhost:3001', // or your frontend URL
     credentials: true,
   })
 );
@@ -30,7 +31,7 @@ app.get('/', (req, res) => {
   logger.info('Root path hit');
   res.send('Task Manager API running very well');
 });
-
+app.use(passport.initialize());
 app.use('/task', TaskRoutes);
 app.use('/auth', AuthRoutes);
 app.use('/logs', LogRoutes);

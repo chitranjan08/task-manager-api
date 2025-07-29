@@ -6,6 +6,7 @@ const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
 const logActivity = require('../middlewares/activityLogger')
+require('dotenv').config();
 // eslint-disable-next-line consistent-return
 const registerUser = async (req, res, next) => {
   try {
@@ -47,7 +48,6 @@ const registerUser = async (req, res, next) => {
 const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
     const user = await UserModel.findOne({ email });
     if (!user) {
       return next(
@@ -97,13 +97,13 @@ const loginUser = async (req, res, next) => {
 const refreshAccessToken = async (req, res, next) => {
   try {
     const token = req.cookies.refreshToken;
+
     if (!token) {
       return next(new AppError('No refresh token provided', 401, ERROR_CODES.TOKEN_MISSING));
     }
 
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
-    const user = await UserModel.findById(decoded.id);
-
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    const user = await UserModel.findById(decoded.userId);
     if (!user || user.refreshToken !== token) {
       return next(new AppError('Invalid refresh token', 403, ERROR_CODES.TOKEN_INVALID));
     }
