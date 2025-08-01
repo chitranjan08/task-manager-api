@@ -7,14 +7,29 @@ const notification = require("../models/Notification")
 const verifyToken = require('../middlewares/authMiddleware');
 
 router.post("/subscribe", async (req, res) => {
-  const { userId, subscription } = req.body;
-  await PushSubscription.findOneAndUpdate(
-    { userId },
-    { subscription },
-    { upsert: true }
-  );
-  res.status(201).json({ message: "Subscription saved" });
+  const { userId, subscription, permission } = req.body;
+
+  if (!userId || !permission) {
+    return res.status(400).json({ message: "Missing userId or permission" });
+  }
+
+  if (permission === "granted") {
+    await PushSubscription.findOneAndUpdate(
+      { userId },
+      { subscription },
+      { upsert: true }
+    );
+    return res.status(201).json({ message: "Subscription saved" });
+  }
+
+  if (permission === "denied") {
+    await PushSubscription.deleteOne({ userId });
+    return res.status(200).json({ message: "Subscription removed" });
+  }
+
+  return res.status(400).json({ message: "Unsupported permission value" });
 });
+
 
 router.get("/", verifyToken,async (req, res) => {
   const { userId } = req.user;
