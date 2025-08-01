@@ -4,6 +4,9 @@ const UserModel = require('../models/User');
 const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const mongoose = require('mongoose');
+const logActivity = require('../middlewares/activityLogger')
+const produceNotification = require("../kafka/producer");
+const Task = require('../models/Task');
 
 // GET /api/logs/admin
 const getAllLogs = async (req, res, next) => {
@@ -91,7 +94,57 @@ const getUserLogs = async (req, res) => {
   res.json({ success: true, count: logs.length, data: logs });
 };
 
+const createLog = async (req, res, next) => {
+  try {
+    const { taskId, action, description } = req.body;
+    const ip = req.ip;
+    const userAgent = req.get('User-Agent');
+    const userId = req.user.userId; // Optional, if you're using auth middleware
+    if (!taskId || !action || !description) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+    const task = await Task.findById(taskId);
+    const log = await ActivityLog.create({
+      user: new mongoose.Types.ObjectId(userId),
+      taskId: new mongoose.Types.ObjectId(taskId),
+      action,
+      description,
+      ip,
+      userAgent
+    });
+    if(action === "STATUS_CHANGE"){
+    await produceNotification({
+      userId: userId,
+      message: `Task status updated: ${task.title}`,
+      status: task.status,
+      type: "TASK_UPDATED",
+      createdAt: new Date().toISOString(),
+    });
+  }else{
+    await produceNotification({
+      userId: userId,
+      message: `You have logged a new activity on task ${task.title}`,
+      type: "TASK_UPDATED",
+      createdAt: new Date().toISOString(),
+    });
+  }
+    res.status(201).json({ success: true, data: log });
+  } catch (err) {
+    console.error('Error creating activity log:', err);
+    next(err);
+  }
+};
+
+const getTaskLogs = async (req, res, next) => {
+  const { taskId } = req.query;
+  const {userId} = req.user
+  const logs = await ActivityLog.find({ taskId: new mongoose.Types.ObjectId(taskId),user:new mongoose.Types.ObjectId(userId) });
+  res.json({ success: true, count: logs.length, data: logs });
+};
+
 module.exports={
     getAllLogs,
-    getUserLogs
+    getUserLogs,
+    createLog,
+    getTaskLogs
 }

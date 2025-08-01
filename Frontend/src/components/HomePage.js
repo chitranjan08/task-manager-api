@@ -147,7 +147,8 @@ const HomePage = () => {
             <Typography variant="body2" color="text.secondary">
               Debug: Pending tasks: {tasks.filter(t => t.status === 'pending').length} | 
               In-progress: {tasks.filter(t => t.status === 'in-progress').length} | 
-              Completed: {tasks.filter(t => t.status === 'completed').length}
+              Completed: {tasks.filter(t => t.status === 'completed').length} |
+              Closed: {tasks.filter(t => t.status === 'closed').length}
             </Typography>
           </Box>
           

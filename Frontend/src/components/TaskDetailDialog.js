@@ -13,7 +13,6 @@ import {
   Select,
   MenuItem,
   Chip,
-  Avatar,
   Divider,
   Alert,
   CircularProgress,
@@ -46,68 +45,65 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
 
   const fetchActivityLogs = async () => {
     if (!task?._id) return;
-    
+
     try {
-      const response = await axios.get(`/logs?taskId=${task._id}`);
-      setActivityLogs(response.data.logs || []);
+      const response = await axios.get(`/logs/task-logs?taskId=${task._id}`);
+      setActivityLogs(response.data.data || []);
     } catch (err) {
       console.error("Failed to fetch activity logs:", err);
     }
   };
 
-  const handleStatusChange = async () => {
+  const handleUpdateAndLog = async () => {
     if (!task?._id) return;
-    
+
     try {
       setLoading(true);
       setError("");
-      
-      await axios.patch(`/task/${task._id}`, {
-        status: status
-      });
-      
-      setSuccess("Task status updated successfully!");
+
+      const logs = [];
+
+      // Status change
+      if (status !== task.status) {
+        await axios.post(`/task/update`, {
+          status: status,
+          id: task._id
+        });
+
+        logs.push({
+          taskId: task._id,
+          action: status === "closed" ? "TASK_CLOSED" : "STATUS_CHANGE",
+          description:
+            status === "closed"
+              ? `Task closed`
+              : `Status changed to ${status}`,
+          details: `Task status updated from ${task.status} to ${status}`
+        });
+      }
+
+      // Log message
+      if (logMessage.trim()) {
+        logs.push({
+          taskId: task._id,
+          action: "LOG_ACTIVITY",
+          description: logMessage,
+          details: `Activity logged: ${logMessage}`
+        });
+      }
+
+      // Send logs in parallel
+      await Promise.all(logs.map((log) => axios.post("/logs/create", log)));
+
+      setSuccess("Changes saved successfully!");
+      setLogMessage("");
       onTaskUpdate();
-      
-      // Add to activity log
-      await axios.post("/logs", {
-        taskId: task._id,
-        action: "STATUS_CHANGE",
-        description: `Status changed to ${status}`,
-        details: `Task status updated from ${task.status} to ${status}`
-      });
-      
+      fetchActivityLogs();
+
       setTimeout(() => {
         onClose();
       }, 1500);
-      
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to update task status");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogActivity = async () => {
-    if (!task?._id || !logMessage.trim()) return;
-    
-    try {
-      setLoading(true);
-      setError("");
-      
-      await axios.post("/logs", {
-        taskId: task._id,
-        action: "LOG_ACTIVITY",
-        description: logMessage,
-        details: `Activity logged: ${logMessage}`
-      });
-      
-      setLogMessage("");
-      setSuccess("Activity logged successfully!");
-      fetchActivityLogs(); // Refresh logs
-      
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to log activity");
+      setError(err.response?.data?.message || "Failed to save changes");
     } finally {
       setLoading(false);
     }
@@ -115,32 +111,36 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
 
   const getPriorityColor = (priority) => {
     switch (priority?.toLowerCase()) {
-      case 'high': return '#f44336';
-      case 'medium': return '#ff9800';
-      case 'low': return '#4caf50';
-      default: return '#ff9800';
+      case "high":
+        return "#f44336";
+      case "medium":
+        return "#ff9800";
+      case "low":
+        return "#4caf50";
+      default:
+        return "#ff9800";
     }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "No due date";
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
     });
   };
 
   const formatDateTime = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
     });
   };
 
@@ -155,12 +155,14 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
       PaperProps={{
         sx: {
           borderRadius: 3,
-          maxHeight: '90vh'
+          maxHeight: "90vh"
         }
       }}
     >
       <DialogTitle sx={{ pb: 1 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Box
+          sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
           <Typography variant="h5" fontWeight="bold">
             Task Details
           </Typography>
@@ -176,14 +178,13 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
             {error}
           </Alert>
         )}
-        
         {success && (
           <Alert severity="success" sx={{ mb: 2 }}>
             {success}
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {/* Task Header */}
           <Box>
             <Typography variant="h6" fontWeight="bold" gutterBottom>
@@ -194,37 +195,40 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
             </Typography>
           </Box>
 
-          {/* Task Info Grid */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Info Grid */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <PersonIcon color="action" />
               <Typography variant="body2">
                 <strong>Assigned to:</strong> {task.assignedTo}
               </Typography>
             </Box>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <ScheduleIcon color="action" />
               <Typography variant="body2">
                 <strong>Due Date:</strong> {formatDate(task.dueDate)}
               </Typography>
             </Box>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <FlagIcon sx={{ color: getPriorityColor(task.priority) }} />
               <Typography variant="body2">
                 <strong>Priority:</strong> {task.priority}
               </Typography>
             </Box>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Chip 
-                label={task.status} 
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Chip
+                label={task.status}
                 size="small"
-                sx={{ 
-                  backgroundColor: task.status === 'completed' ? '#4caf50' : 
-                                 task.status === 'in-progress' ? '#2196f3' : '#ff9800',
-                  color: 'white'
+                sx={{
+                  backgroundColor:
+                    task.status === "completed"
+                      ? "#4caf50"
+                      : task.status === "in-progress"
+                      ? "#2196f3"
+                      : task.status === "closed"
+                      ? "#9e9e9e"
+                      : "#ff9800",
+                  color: "white"
                 }}
               />
             </Box>
@@ -234,7 +238,7 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
           {task.description && (
             <Box>
               <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                <DescriptionIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                <DescriptionIcon sx={{ mr: 1, verticalAlign: "middle" }} />
                 Description
               </Typography>
               <Typography variant="body2" sx={{ pl: 3 }}>
@@ -245,12 +249,12 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
 
           <Divider />
 
-          {/* Status Change Section */}
+          {/* Change Status */}
           <Box>
             <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Change Status
+              Change Status or Add Log
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
               <FormControl size="small" sx={{ minWidth: 200 }}>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -261,65 +265,64 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
                   <MenuItem value="pending">To-do</MenuItem>
                   <MenuItem value="in-progress">In-Progress</MenuItem>
                   <MenuItem value="completed">Completed</MenuItem>
+                  <MenuItem value="closed">Closed</MenuItem>
                 </Select>
               </FormControl>
-              <Button
-                variant="contained"
-                onClick={handleStatusChange}
-                disabled={loading || status === task.status}
-                startIcon={loading ? <CircularProgress size={16} /> : null}
-              >
-                {loading ? "Updating..." : "Update Status"}
-              </Button>
             </Box>
           </Box>
 
-          <Divider />
+          {/* Log Activity */}
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            placeholder="Log your activity or progress..."
+            value={logMessage}
+            onChange={(e) => setLogMessage(e.target.value)}
+            disabled={loading}
+          />
 
-          {/* Log Activity Section */}
-          <Box>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Log Activity
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Log your activity or progress..."
-                value={logMessage}
-                onChange={(e) => setLogMessage(e.target.value)}
-                disabled={loading}
-              />
-              <Button
-                variant="outlined"
-                onClick={handleLogActivity}
-                disabled={loading || !logMessage.trim()}
-                startIcon={loading ? <CircularProgress size={16} /> : null}
-              >
-                {loading ? "Logging..." : "Log"}
-              </Button>
-            </Box>
-          </Box>
+          <Button
+            variant="contained"
+            onClick={handleUpdateAndLog}
+            disabled={
+              loading || (status === task.status && !logMessage.trim())
+            }
+            startIcon={loading ? <CircularProgress size={16} /> : null}
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </Button>
 
           <Divider />
 
           {/* Activity Logs */}
           <Box>
             <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+              <HistoryIcon sx={{ mr: 1, verticalAlign: "middle" }} />
               Activity Log
             </Typography>
-            <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+            <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
               {activityLogs.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   No activity logs yet
                 </Typography>
               ) : (
                 activityLogs.map((log, index) => (
-                  <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+                  <Box
+                    key={index}
+                    sx={{
+                      mb: 2,
+                      p: 2,
+                      backgroundColor: "#f5f5f5",
+                      borderRadius: 1
+                    }}
+                  >
                     <Typography variant="body2" fontWeight="medium">
-                      {log.action === 'STATUS_CHANGE' ? '🔄 Status Changed' : '📝 Activity Logged'}
+                      {log.action === "STATUS_CHANGE"
+                        ? "🔄 Status Changed"
+                        : log.action === "TASK_CLOSED"
+                        ? "🚫 Task Closed"
+                        : "📝 Activity Logged"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {log.description}
@@ -344,4 +347,4 @@ const TaskDetailDialog = ({ open, task, onClose, onTaskUpdate }) => {
   );
 };
 
-export default TaskDetailDialog; 
+export default TaskDetailDialog;

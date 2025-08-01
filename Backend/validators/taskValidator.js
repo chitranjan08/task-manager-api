@@ -28,8 +28,8 @@ const updateTaskSchema = Joi.object({
     'any.only': 'Priority must be one of low, medium, or high',
   }),
 
-  status: Joi.string().valid('todo', 'in-progress', 'done').optional().messages({
-    'any.only': 'Status must be todo, in-progress, or done',
+  status: Joi.string().valid('pending', 'in-progress', 'completed','closed').optional().messages({
+    'any.only': 'Status must be pending, in-progress, completed, or closed',
   }),
 
   dueDate: Joi.date().optional().messages({

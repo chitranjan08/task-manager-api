@@ -6,7 +6,8 @@ import TaskColumn from "./TaskColumn";
 const STATUS_COLUMNS = [
   { value: "pending", label: "To-do", color: "#ef6c00" },
   { value: "in-progress", label: "In-Progress", color: "#0d47a1" },
-  { value: "completed", label: "Completed", color: "#1b5e20" }
+  { value: "completed", label: "Completed", color: "#1b5e20" },
+  { value: "closed", label: "Closed", color: "#9e9e9e" }
 ];
 
 const TaskBoard = ({ tasks, onTaskUpdate, onTaskClick }) => {
