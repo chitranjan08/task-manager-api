@@ -1,12 +1,16 @@
 const bodyParser = require('body-parser');
 const passport = require("passport");
 const cors = require('cors');
+const webpush = require("web-push");
 const cookieParser = require('cookie-parser');
-const app = require('./server/server');
+const { app, server } = require('./server/server');
 const connectDB = require('./config/db');
 const AuthRoutes = require('./routes/authRoutes');
 const TaskRoutes = require('./routes/taskRoutes');
 const LogRoutes = require('./routes/logRoutes');
+const UserRoutes = require('./routes/userRoutes')
+const NotificationRoutes = require('./routes/notifications')
+const startKafkaConsumer = require("./kafka/consumer");
 const { globalLimiter } = require("./middlewares/rateLimiter");
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const logger = require('./utils/logger');
@@ -35,9 +39,16 @@ app.use(passport.initialize());
 app.use('/task', TaskRoutes);
 app.use('/auth', AuthRoutes);
 app.use('/logs', LogRoutes);
+app.use('/users', UserRoutes);
+app.use('/notifications', NotificationRoutes);
 app.use(globalLimiter);
 app.use(errorMiddleware); // Should be at the end
-
-app.listen(PORT, '0.0.0.0', () => {
+webpush.setVapidDetails(
+  "mailto:you@example.com",
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+startKafkaConsumer();
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server started on http://localhost:${PORT}`);
 });

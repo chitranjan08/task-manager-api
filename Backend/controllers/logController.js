@@ -82,13 +82,11 @@ const getUserLogs = async (req, res) => {
     const filter =  {}
     if (email) {
       const user = await UserModel.findOne({ email }, { _id: 1 });
-      console.log(user)
       if (!user) {
       return next(new AppError('User not found for filtering', 404, ERROR_CODES.USER_NOT_FOUND));
       }
       filter.user = new mongoose.Types.ObjectId(user._id);
     }
-    console.log(filter)
   const logs = await ActivityLog.find(filter);
   res.json({ success: true, count: logs.length, data: logs });
 };

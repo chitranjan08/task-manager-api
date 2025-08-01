@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import api from "../axios";
+import { disconnectSocket } from "../socket";
 
 import {
   Container,
@@ -46,7 +47,14 @@ function Dashboard() {
   }, []);
 
   const handleLogout = () => {
+    // Disconnect socket before logout
+    disconnectSocket();
+    
+    // Clear local storage
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("rememberMe");
+    
+    // Redirect to login
     window.location.href = "/";
   };
 

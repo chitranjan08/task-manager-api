@@ -6,12 +6,17 @@ const AppError = require('../utils/AppError');
 const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
 const logActivity = require('../middlewares/activityLogger')
+const PushSubscription = require("../models/PushSubscription");
+const { createNotification } = require("../services/notificationService");
+const Notification = require('../models/Notification');
+const webpush = require("web-push")
+const produceNotification = require("../kafka/producer");
 
 const createTask = async (req, res, next) => {
   try {
-    console.log(req.body)
+    const io = req.app.get("io");
+    const onlineUsers = req.app.get("onlineUsers");
     const { title, description, assignedTo, dueDate, priority } = req.body;
-
     // 🔍 Validate assigned user exists
     const assignedUser = await User.findOne({ email: assignedTo });
     if (!assignedUser) {
@@ -26,26 +31,62 @@ const createTask = async (req, res, next) => {
       createdBy: req.user.userId,
       dueDate,
       priority,
+      isDeleted:false
     });
 
     logger.info(`✅ Task created and assigned to ${assignedTo} by ${req.user.userId}`);
+
     await logActivity({
       userId: req.user._id,
       action: 'CREATE_TASK',
       description: `Task created: ${task.title}`,
       req,
     });
+
+     await produceNotification({
+      userId: assignedUser._id,
+      message: `New task assigned: ${task.title}`,
+      type: "TASK_ASSIGNED",
+      createdAt: new Date().toISOString(),
+    });
+    // 🔔 Create Notification
+    // const notification = await createNotification(
+    //   assignedUser._id,
+    //   `New task assigned: ${task.title}`,
+    //   "Task created"
+    // );
+
+    // 🛰 Emit to user if online
+    // const targetSocketId = onlineUsers.get(assignedUser._id.toString());
+    // if (targetSocketId) {
+    //   io.to(targetSocketId).emit('notification', {
+    //     message: notification?.message || "📌 You have a new task assigned.",
+    //     createdAt: notification.createdAt,
+    //   });
+    // }
+
+  //   const subscriptionDoc = await PushSubscription.findOne({ userId:new mongoose.Types.ObjectId(assignedUser._id) });
+
+  //   if (subscriptionDoc) {
+  // const payload = JSON.stringify({
+  //   title: "New Task Assigned",
+  //   body: task.title,
+  // });
+    
+  // await webpush.sendNotification(subscriptionDoc.subscription, payload)
     res.status(201).json({
       success: true,
       message: 'Task created successfully',
       task,
     });
+// }
   } catch (err) {
     console.log(err)
     logger.error('❌ Error creating task: %o', err);
     next(err);
   }
 };
+
 
 const getTasks = async (req, res, next) => {
   try {
@@ -105,7 +146,6 @@ const getTasks = async (req, res, next) => {
       },
     ]);
 
-    console.log(tasks);
     res.status(200).json({
       success: true,
       count: tasks.length,

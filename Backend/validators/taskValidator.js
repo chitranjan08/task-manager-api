@@ -5,7 +5,7 @@ const taskSchema = Joi.object({
   description: Joi.string().allow('').optional(),
   dueDate: Joi.date().required(),
   eta: Joi.number().min(1).optional(), // optional unless you're using it in logic
-  priority: Joi.string().valid('low', 'medium', 'high').default('medium'),
+  priority: Joi.string().valid('Low', 'Medium', 'High').default('Medium'),
   status: Joi.string().valid('pending', 'in-progress', 'completed').default('pending'),
   assignedTo: Joi.string().email().required(), // expecting email to look up User ID
 });

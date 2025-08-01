@@ -3,7 +3,7 @@ require('dotenv').config();
 
 const generateAccessToken = (userId, role) =>
   jwt.sign({ userId, role }, process.env.JWT_SECRET, {
-    expiresIn: '10s',
+    expiresIn: '10m',
   });
 
 const generateRefreshToken = (userId) =>
