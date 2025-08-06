@@ -26,19 +26,16 @@ const startConsumer = async () => {
         const data = JSON.parse(message.value.toString());
         const { userId, message: notifMsg } = data;
 
-        console.log("\n📩 Received Kafka Message:", data);
-        console.log("🗺️ Current online users:", Array.from(onlineUsers.entries()));
 
         // Step 1: Save notification in DB
         const notif = await createNotification(
           userId,
           notifMsg,
-          "Task Assigned"
+          type
         );
 
         // Step 2: Emit in-app notification if user is online
         const socketId = onlineUsers.get(userId.toString());
-        console.log("📡 socketId for user:", socketId);
 
         if (socketId) {
           io.to(socketId).emit("notification", {

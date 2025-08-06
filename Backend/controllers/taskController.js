@@ -11,6 +11,7 @@ const { createNotification } = require("../services/notificationService");
 const Notification = require('../models/Notification');
 const webpush = require("web-push")
 const produceNotification = require("../kafka/producer");
+const { Console } = require('winston/lib/winston/transports');
 
 const createTask = async (req, res, next) => {
   try {
@@ -91,11 +92,13 @@ const createTask = async (req, res, next) => {
 const getTasks = async (req, res, next) => {
   try {
     const { role, userId } = req.user;
+    console.log(req.user)
     const { email } = req.query; // optional for admin filter
 
     const query = {};
 
     if (role === 'admin') {
+      query.createdBy = new mongoose.Types.ObjectId(userId)
       if (email) {
         const user = await User.findOne({ email }, { _id: 1 });
         if (!user) {
@@ -104,12 +107,13 @@ const getTasks = async (req, res, next) => {
           );
         }
         query.assignedTo = user._id;
+        
       }
     } else {
       // Only show tasks assigned to the current user
       query.assignedTo = new mongoose.Types.ObjectId(userId);
     }
-
+  console.log(query)
     const tasks = await Task.aggregate([
       {
         $match: query,
