@@ -16,6 +16,7 @@ A full-stack, scalable, and secure **Task Management Application** built with **
 - [API Endpoints](#api-endpoints)
 - [Social Login](#social-login)
 - [Rate Limiting](#rate-limiting)
+- [Error Logging](#error-logging)
 - [Kafka Integration](#kafka-integration)
 - [Docker Setup](#docker-setup)
 - [Deployment (AWS EC2 + CI/CD)](#deployment-aws-ec2--cicd)
@@ -209,6 +210,27 @@ npm start
 
 ---
 
+## 🪵 Error Logging
+
+**Custom Error Logging System:**
+- Uses [Winston](https://github.com/winstonjs/winston) for advanced, centralized logging.
+- All errors (including unhandled and custom errors) are logged with timestamp, status code, error code, request path, method, and stack trace.
+- Error logs are written to:
+  - `logs/error.log` (errors only)
+  - `logs/combined.log` (all logs)
+- Custom error codes are defined in `Backend/utils/errorCodes.js` for consistent error handling and debugging.
+- API error responses are structured as:
+  ```json
+  {
+    "success": false,
+    "message": "Error message",
+    "errorCode": 1234
+  }
+  ```
+- The error middleware handles validation, database, JWT, and server errors, providing clear messages and codes for frontend consumption.
+
+---
+
 ## 📨 Kafka Integration
 - Uses **KafkaJS** for Node.js integration.
 - Real-time updates for tasks and logs.
@@ -245,6 +267,7 @@ docker-compose up --build
 - **Docker issues:** Try rebuilding images with `docker-compose build --no-cache`.
 - **OAuth errors:** Double-check your Google/Facebook credentials and callback URLs.
 - **Rate limit errors:** Wait for the window to reset or check for excessive requests from your IP.
+- **Error logs:** Check `logs/error.log` and `logs/combined.log` in the backend for detailed error information and debugging.
 
 ---
 
