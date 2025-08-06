@@ -1,6 +1,6 @@
 # 🧠 Smart Task Manager
 
-A full-stack, scalable, and secure **Task Management Application** built with **React (MUI)**, **Node.js**, **Express**, **MongoDB**, and **Kafka**. It includes user roles, JWT authentication, task tracking, activity logs, email reminders, and real-time data streaming via Kafka. The project is **Dockerized** and ready for **CI/CD on AWS EC2**.
+A full-stack, scalable, and secure **Task Management Application** built with **React (MUI)**, **Node.js**, **Express**, **MongoDB**, and **Kafka**. It includes user roles, JWT authentication, task tracking, activity logs, email reminders, real-time data streaming via Kafka, **social login (Google, Facebook)**, and **rate limiting**. The project is **Dockerized** and ready for **CI/CD on AWS EC2**.
 
 ---
 
@@ -14,6 +14,8 @@ A full-stack, scalable, and secure **Task Management Application** built with **
   - [Frontend Setup](#frontend-setup)
 - [Environment Variables](#environment-variables)
 - [API Endpoints](#api-endpoints)
+- [Social Login](#social-login)
+- [Rate Limiting](#rate-limiting)
 - [Kafka Integration](#kafka-integration)
 - [Docker Setup](#docker-setup)
 - [Deployment (AWS EC2 + CI/CD)](#deployment-aws-ec2--cicd)
@@ -27,18 +29,21 @@ A full-stack, scalable, and secure **Task Management Application** built with **
 
 ### 🔙 Backend
 - User registration and login with **JWT + refresh tokens**
+- **Social login**: Google, Facebook (OAuth 2.0)
 - **Role-based access**: Admin, Manager, User
 - CRUD operations for tasks
 - Task status tracking (`todo`, `in-progress`, `done`)
 - **Activity logs** for audit trail
 - **Email reminders** for due tasks (via cron jobs)
 - **Real-time data streaming** using **Kafka**
+- **Rate limiting** for security and abuse prevention
 - Secure APIs with rate limiting and input validation
 - **Dockerized** and CI/CD ready
 
 ### 🔜 Frontend
 - Built with modern **React** and **MUI**
 - **Login / Register / Logout** flows
+- **Social login** (Google, Facebook)
 - **Protected routes** using JWT
 - Create, edit, delete, and filter tasks
 - View real-time task updates via Kafka stream (e.g., WebSocket or polling Kafka consumer endpoint)
@@ -52,11 +57,13 @@ A full-stack, scalable, and secure **Task Management Application** built with **
 |-------------|--------------------------------------------------|
 | Frontend    | React, MUI, Axios, React Router                  |
 | Backend     | Node.js, Express, MongoDB, Mongoose              |
-| Auth        | JWT (access + refresh tokens), Passport          |
+| Auth        | JWT (access + refresh tokens), Passport, OAuth2  |
+| Social Auth | Google, Facebook (passport-google-oauth20, passport-facebook) |
 | Messaging   | Apache Kafka, KafkaJS                            |
 | Validation  | Joi                                              |
 | Logging     | Winston                                          |
 | Email       | Nodemailer                                       |
+| Rate Limiting | express-rate-limit                             |
 | DevOps      | Docker, GitHub Actions / Jenkins                 |
 | Deployment  | AWS EC2                                          |
 
@@ -80,6 +87,7 @@ A full-stack, scalable, and secure **Task Management Application** built with **
 - Docker & Docker Compose
 - Apache Kafka + Zookeeper (locally or via Docker)
 - AWS EC2 (for deployment)
+- Google and Facebook OAuth credentials (for social login)
 
 ---
 
@@ -100,6 +108,10 @@ JWT_REFRESH_SECRET=your_refresh_secret
 EMAIL_USER=your_email@example.com
 EMAIL_PASS=your_email_password
 KAFKA_BROKER=localhost:9092
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
 ```
 
 **Available scripts:**
@@ -148,12 +160,52 @@ npm start
 |--------|--------------------|----------------------|
 | POST   | /auth/register     | Register a new user  |
 | POST   | /auth/login        | Login and receive token |
+| POST   | /auth/refresh-token| Refresh JWT token    |
+| GET    | /auth/google       | Start Google OAuth login |
+| GET    | /auth/google-callback | Google OAuth callback |
+| GET    | /auth/facebook     | Start Facebook OAuth login |
+| GET    | /auth/facebook/callback | Facebook OAuth callback |
 | GET    | /tasks             | Get all tasks        |
 | POST   | /tasks/create      | Create a task        |
 | POST   | /tasks/update      | Update a task        |
 | POST   | /tasks/delete      | Delete a task        |
 | GET    | /logs/task-logs    | Get activity logs    |
 | GET    | /kafka/stream      | Stream Kafka messages (optional) |
+
+---
+
+## 🔑 Social Login
+
+**Supported Providers:**
+- Google
+- Facebook
+
+**Backend:**
+- Uses Passport.js strategies for Google and Facebook OAuth2.
+- Endpoints: `/auth/google`, `/auth/facebook` (initiate login), `/auth/google-callback`, `/auth/facebook/callback` (handle callback).
+- On success, issues JWT and redirects to frontend with token.
+
+**Frontend:**
+- Social login buttons for Google and Facebook in the Auth form.
+- Clicking a button redirects to the backend OAuth endpoint.
+- On successful login, user is redirected back to `/social-login-success` route with token for authentication.
+
+**Environment Variables:**
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` required in backend `.env`.
+
+---
+
+## 🚦 Rate Limiting
+
+**Global Limiter:**
+- Applies to all requests: **100 requests per 15 minutes per IP**
+
+**Auth Limiter:**
+- Applies to login/register: **5 attempts per 10 minutes per IP**
+
+**Implementation:**
+- Uses `express-rate-limit` middleware.
+- Returns HTTP 429 with a clear error message if limit is exceeded.
 
 ---
 
@@ -191,6 +243,8 @@ docker-compose up --build
 - **Kafka errors:** Make sure both Zookeeper and Kafka are running and accessible.
 - **Port conflicts:** Check if ports 3000 (backend), 27017 (MongoDB), and 9092 (Kafka) are free.
 - **Docker issues:** Try rebuilding images with `docker-compose build --no-cache`.
+- **OAuth errors:** Double-check your Google/Facebook credentials and callback URLs.
+- **Rate limit errors:** Wait for the window to reset or check for excessive requests from your IP.
 
 ---
 

@@ -11,10 +11,10 @@ const ValidateSchema = require('../validators/authValidator');
 const UserModel = require('../models/User');
 
 // @route   POST /api/auth/register
-router.post('/register', validate(ValidateSchema.registerSchema), registerUser);
+router.post('/register', validate(ValidateSchema.registerSchema), authLimiter, registerUser);
 
 // @route   POST /api/auth/login
-router.post('/login',validate(ValidateSchema.loginSchema), loginUser);
+router.post('/login',validate(ValidateSchema.loginSchema), authLimiter,loginUser);
 
 router.post('/refresh-token', refreshAccessToken);
 
