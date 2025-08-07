@@ -1,5 +1,6 @@
 /* eslint-disable consistent-return */
 const jwt = require('jsonwebtoken');
+const crypto = require("crypto")
 const UserModel = require('../models/User');
 const { generateRefreshToken, generateAccessToken } = require('../utils/generateToken');
 const AppError = require('../utils/AppError');
@@ -7,6 +8,7 @@ const ERROR_CODES = require('../utils/errorCodes');
 const logger = require('../utils/logger');
 const logActivity = require('../middlewares/activityLogger')
 require('dotenv').config();
+const { sendWelcomeEmail,sendPasswordResetEmail } = require('../services/emailService');
 // eslint-disable-next-line consistent-return
 const registerUser = async (req, res, next) => {
   try {
@@ -26,7 +28,7 @@ const registerUser = async (req, res, next) => {
 
     // Save refresh token in DB
     user.refreshToken = refreshToken;
-    await user.save();
+   const newUser= await user.save();
     logger.info(`New user registered: ${req.body.email}`);
      await logActivity({
       userId: user._id,
@@ -34,6 +36,7 @@ const registerUser = async (req, res, next) => {
       description: 'User registered successfully',
       req,
     });
+    await sendWelcomeEmail(newUser);
     res.status(201).json({
       message: 'User registered successfully',
       user: { name: user.name, email: user.email, role: user.role },
@@ -94,6 +97,43 @@ const loginUser = async (req, res, next) => {
   }
 };
 
+const resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  const user = await UserModel.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: Date.now() }
+  });
+
+  if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
+
+  user.password = newPassword;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  res.json({ message: 'Password has been reset.' });
+};
+
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  const user = await UserModel.findOne({ email });
+
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expireTime = Date.now() + 15 * 60 * 1000;
+
+  user.resetPasswordToken = token;
+  user.resetPasswordExpires = expireTime;
+  await user.save();
+
+  const resetLink = `http://localhost:3001/reset-password?token=${token}`;
+
+  await sendPasswordResetEmail(user, resetLink);
+
+  res.json({ message: 'Reset link sent to email.' });
+};
 const refreshAccessToken = async (req, res, next) => {
   try {
     const token = req.cookies.refreshToken;
@@ -120,4 +160,6 @@ module.exports = {
   registerUser,
   loginUser,
   refreshAccessToken,
+  resetPassword,
+  forgotPassword
 };

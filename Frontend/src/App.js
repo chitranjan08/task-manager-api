@@ -8,7 +8,8 @@ import SocialLoginSuccess from "./components/SocialLoginSuccess";
 import CreateTask from "./components/CreateTask";
 import NotificationHandler from "./components/NotificationHandler";
 import HomePage from "./components/HomePage";
-
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 function App() {
   useEffect(() => {
     initInactivityTimer();
@@ -44,6 +45,8 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </Router>
   );

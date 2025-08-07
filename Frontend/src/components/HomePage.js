@@ -20,6 +20,7 @@ const HomePage = () => {
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
 
   // Initialize push notification subscription when user is loaded
+  console.log("🔔 Initializing push notifications for user:", user?._id);
   usePushNotification(user?._id);
 
   const fetchData = async () => {
@@ -33,7 +34,7 @@ const HomePage = () => {
       
       // Handle the API response structure: { success: true, count: number, tasks: [...] }
       const apiTasks = taskRes.data.tasks || [];
-      const finalTasks = apiTasks.length > 0 ? apiTasks : sampleTasks;
+      const finalTasks = taskRes.data.tasks || [];
       setTasks(finalTasks);
       setUser(userRes.data.data);
       
@@ -97,7 +98,10 @@ const HomePage = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateOpen(true)}
+             onClick={() => {
+             if (user.role !== 'user') setCreateOpen(true);
+            }}
+            disabled={user.role === 'user'}
             sx={{
               position: 'absolute',
               top: 24,

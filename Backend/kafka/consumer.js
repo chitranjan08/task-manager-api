@@ -3,6 +3,8 @@ const { app, io, onlineUsers } = require("../server/server");
 const mongoose = require("mongoose");
 const { createNotification } = require("../services/notificationService");
 const PushSubscription = require("../models/PushSubscription");
+const User = require("../models/User");
+const { sendEmailNotification } = require("../services/mailService");
 const webpush = require("web-push");
 
 const kafka = new Kafka({
@@ -24,7 +26,7 @@ const startConsumer = async () => {
     await consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
         const data = JSON.parse(message.value.toString());
-        const { userId, message: notifMsg } = data;
+        const { userId, message: notifMsg, type } = data;
 
 
         // Step 1: Save notification in DB
@@ -64,6 +66,25 @@ const startConsumer = async () => {
           } catch (pushErr) {
             console.error("❌ Failed to send Web Push:", pushErr);
           }
+        }
+
+        //Step 4: Send email notification
+
+        const user = await User.findById(userId).select("email");
+        if (user && user.email) {
+          try {
+            // Assuming you have a function to send emails
+            await sendEmailNotification(
+              user.email,
+               type,
+               notifMsg,
+            );
+            console.log("✅ Email notification sent.");
+          } catch (emailErr) {
+            console.error("❌ Failed to send email:", emailErr);
+          }
+        } else {
+          console.warn("⚠️ User email not found for notification:", userId);
         }
       },
     });

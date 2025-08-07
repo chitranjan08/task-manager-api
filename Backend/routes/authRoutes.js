@@ -1,7 +1,7 @@
 const express = require('express');
 const passport = require("passport");
 const router = express.Router();
-const { registerUser, loginUser, refreshAccessToken } = require('../controllers/authController');
+const { registerUser, loginUser, forgotPassword,refreshAccessToken,resetPassword } = require('../controllers/authController');
 const { generateRefreshToken, generateAccessToken } = require('../utils/generateToken');
 
 const { authLimiter } = require("../middlewares/rateLimiter");
@@ -9,12 +9,16 @@ const { authLimiter } = require("../middlewares/rateLimiter");
 const validate = require('../middlewares/validateMiddleware');
 const ValidateSchema = require('../validators/authValidator');
 const UserModel = require('../models/User');
-
+const { sendWelcomeEmail } = require('../services/emailService');
 // @route   POST /api/auth/register
 router.post('/register', validate(ValidateSchema.registerSchema), authLimiter, registerUser);
 
 // @route   POST /api/auth/login
 router.post('/login',validate(ValidateSchema.loginSchema), authLimiter,loginUser);
+
+router.post('/forgot-password', forgotPassword)
+
+router.post('/reset-password', resetPassword)
 
 router.post('/refresh-token', refreshAccessToken);
 

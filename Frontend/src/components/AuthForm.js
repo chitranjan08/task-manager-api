@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "../axios";
-
+import { Link as RouterLink } from 'react-router-dom';
 import {
   TextField,
   Button,
@@ -516,19 +516,20 @@ function AuthForm() {
                     </Typography>
                   }
                 />
-                <Link
-                  href="#"
-                  variant="body2"
-                  sx={{ 
-                    color: linkColor,
-                    textDecoration: "none",
-                    "&:hover": {
-                      textDecoration: "underline",
-                    },
-                  }}
-                >
-                  Forgot password?
-                </Link>
+          <Link
+          component={RouterLink}
+          to="/forgot-password"
+          variant="body2"
+          sx={{ 
+          color: linkColor,
+          textDecoration: "none",
+          "&:hover": {
+          textDecoration: "underline",
+          },
+          }}
+          >
+          Forgot password?
+          </Link>
               </Box>
             )}
 

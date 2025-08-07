@@ -8,7 +8,7 @@ const kafka = new Kafka({
 const producer = kafka.producer();
 
 const produceNotification = async (data) => {
-  await producer.connect();
+ await producer.connect();
   await producer.send({
     topic: "notifications",
     messages: [
