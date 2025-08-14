@@ -3,6 +3,8 @@ services:
     image: mongo:6
     ports:
       - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
 
   app:
     build: .
@@ -12,3 +14,6 @@ services:
       - mongo
     env_file:
       - .env
+volumes:
+    mongo_data:
+      driver: local
