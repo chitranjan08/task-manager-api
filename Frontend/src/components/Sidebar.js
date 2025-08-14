@@ -218,7 +218,6 @@ const Sidebar = ({ user }) => {
         formData.append('email', profileForm.email);
         formData.append('avatar', selectedFile);
 
-        console.log("Sending profile data with file:", formData);
 
         res = await axios.post('/users/edit-profile', formData, {
           headers: {
@@ -230,9 +229,9 @@ const Sidebar = ({ user }) => {
         const profileData = {
           name: profileForm.name,
           email: profileForm.email,
+          removeAvatar : true, // Indicate to remove avatar if not provided
         };
 
-        console.log("Sending profile data without file:", profileData);
 
         res = await axios.post('/users/edit-profile', profileData, {
           headers: {
@@ -241,7 +240,6 @@ const Sidebar = ({ user }) => {
         });
       }
 
-      console.log("Profile updated successfully:", res.data);
       
       // Update local user state if needed
       if (res.data.user) {

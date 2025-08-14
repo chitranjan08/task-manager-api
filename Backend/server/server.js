@@ -31,7 +31,39 @@ io.on('connection', (socket) => {
     onlineUsers.get(userId).add(socket.id);
     console.log(`✅ User ${userId} registered socket ${socket.id}`);
   });
+ socket.on('typing', ({ chatId, senderId, isTyping }) => {
+    messageService.getChatMembers(chatId).then((members) => {
+      members.filter((m) => m !== senderId).forEach((memberId) => {
+        const sockets = onlineUsers.get(memberId);
+        if (sockets) {
+          sockets.forEach((sockId) => {
+            io.to(sockId).emit('typing', { chatId, senderId, isTyping });
+          });
+        }
+      });
+    });
+  });
 
+   socket.on('message:delivered', async ({ messageId, userId }) => {
+    await messageService.markDelivered(messageId, userId);
+    const message = await messageService.getMessageById(messageId);
+    const sockets = onlineUsers.get(message.senderId.toString());
+    if (sockets) {
+      sockets.forEach((sockId) => {
+        io.to(sockId).emit('messageStatus', { messageId, status: 'delivered', userId });
+      });
+    }
+  });
+  socket.on('message:read', async ({ messageId, userId }) => {
+    await messageService.markRead(messageId, userId);
+    const message = await messageService.getMessageById(messageId);
+    const sockets = onlineUsers.get(message.senderId.toString());
+    if (sockets) {
+      sockets.forEach((sockId) => {
+        io.to(sockId).emit('messageStatus', { messageId, status: 'read', userId });
+      });
+    }
+  });
   socket.on('disconnect', () => {
     console.log(`❌ Socket disconnected: ${socket.id}`);
 
