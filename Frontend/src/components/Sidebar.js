@@ -38,8 +38,10 @@ import {
   Email as EmailIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
+  Chat as ChatIcon,
 } from "@mui/icons-material";
 import axios from "../axios";
+import Chat from "./Chat";
 
 const Sidebar = ({ user }) => {
   const [notifications, setNotifications] = useState([]);
@@ -57,6 +59,7 @@ const Sidebar = ({ user }) => {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(user?.avatar || "");
+  const [chatOpen, setChatOpen] = useState(false);
   
   const menuItems = [
     { icon: DashboardIcon, label: "Dashboard", active: true },
@@ -318,6 +321,21 @@ const Sidebar = ({ user }) => {
       ))}
 
       <Divider sx={{ width: "80%", my: 2, backgroundColor: "#333" }} />
+
+      {/* Chat Button */}
+      <Tooltip title="Chat" placement="right">
+        <IconButton 
+          onClick={() => setChatOpen(true)}
+          sx={{ 
+            color: "#888",
+            "&:hover": {
+              backgroundColor: "rgba(255, 107, 53, 0.1)",
+            },
+          }}
+        >
+          <ChatIcon />
+        </IconButton>
+      </Tooltip>
 
       {/* Notification Bell */}
       <Tooltip title="Notifications" placement="right">
@@ -692,6 +710,13 @@ const Sidebar = ({ user }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Chat Component */}
+      <Chat 
+        open={chatOpen} 
+        onClose={() => setChatOpen(false)} 
+        user={user} 
+      />
     </Box>
   );
 };

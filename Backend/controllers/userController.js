@@ -6,26 +6,29 @@ const mongoose = require('mongoose');
 
 // GET /api/users - Get all active users
 const getAllUsers = async (req, res, next) => {
-  try{
-  const users = await User.find({}, {name:1,email:1,role:1});
-  res.status(200).json({ success: true, users });
-  }catch(err){
-    next(err)
+  try {
+    const users = await User.find({}, { name: 1, email: 1, role: 1 });
+    res.status(200).json({ success: true, users });
+  } catch (err) {
+    next(err);
   }
 };
 
-const getProfile = async(req,res, next)=>{
-  try{
-   const user = await User.findOne({ _id:new mongoose.Types.ObjectId(req.user.userId) },{name:1,email:1,role:1,avatar:1});
+const getProfile = async (req, res, next) => {
+  try {
+    const user = await User.findOne(
+      { _id: new mongoose.Types.ObjectId(req.user.userId) },
+      { name: 1, email: 1, role: 1, avatar: 1 }
+    );
     if (!user) {
       return next(new AppError('Assigned user not found', 404, ERROR_CODES.USER_NOT_FOUND));
     }
-    res.status(200).json({data:user})
-  }catch(err){
-logger.error('❌ Login error: %o', err);
+    res.status(200).json({ data: user });
+  } catch (err) {
+    logger.error('❌ Login error: %o', err);
     next(err);
   }
-}
+};
 // GET /api/users/:id - Get user by ID
 const getUserById = async (req, res) => {
   const user = await User.findById(req.params.id).select('-password');
@@ -34,8 +37,8 @@ const getUserById = async (req, res) => {
 };
 
 // POST /api/users/edit-profile - Edit current user's profile (name, email)
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 const editProfile = async (req, res, next) => {
   try {
@@ -64,44 +67,40 @@ const editProfile = async (req, res, next) => {
       }
 
       // Read the file into memory
-      const filePath = path.join(__dirname, "..", "uploads", avatarFile.filename);
+      const filePath = path.join(__dirname, '..', 'uploads', avatarFile.filename);
       const fileData = fs.readFileSync(filePath);
 
       // Convert to base64 with MIME type
-      const base64Image = `data:${avatarFile.mimetype};base64,${fileData.toString("base64")}`;
+      const base64Image = `data:${avatarFile.mimetype};base64,${fileData.toString('base64')}`;
 
       // Store new base64 image
       updateObj.avatar = base64Image;
 
       // Delete temp file
       fs.unlink(filePath, (err) => {
-        if (err) console.error("Error deleting temp file:", err);
+        if (err) console.error('Error deleting temp file:', err);
       });
-
-    } else if (removeAvatar === "true" || removeAvatar === true) {
+    } else if (removeAvatar === 'true' || removeAvatar === true) {
       // Remove avatar if requested
       updateObj.avatar = null;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateObj,
-      { new: true, runValidators: true, select: 'name email role avatar' }
-    );
+    const updatedUser = await User.findByIdAndUpdate(userId, updateObj, {
+      new: true,
+      runValidators: true,
+      select: 'name email role avatar',
+    });
 
     if (!updatedUser) {
       return next(new AppError('User not found', 404, ERROR_CODES.USER_NOT_FOUND));
     }
 
     res.status(200).json({ success: true, user: updatedUser });
-
   } catch (err) {
     logger.error('❌ Edit profile error: %o', err);
     next(err);
   }
 };
-
-
 
 // PUT /api/users/:id - Update role or status
 const updateUser = async (req, res) => {
@@ -131,20 +130,36 @@ const searchUsers = async (req, res) => {
 
     const regex = new RegExp(q, 'i');
     const users = await User.find({
-      $or: [{ name: regex }, { email: regex }]
-    }).select('name email');
-
+      $or: [{ name: regex }, { email: regex }],
+    });
+    console.log('Search query:', users);
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+const getChatUsers = async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    // Get all users except the current user for chat purposes
+    const users = await User.find(
+      { _id: { $ne: currentUserId } },
+      { name: 1, email: 1, avatar: 1 }
+    );
+    res.json({ users });
+  } catch (err) {
+    console.error('Error fetching chat users:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 module.exports = {
-    deleteUser,
-    updateUser,
-    getUserById,
-    getAllUsers,
-    getProfile,
-    editProfile,
-    searchUsers
-}
+  deleteUser,
+  updateUser,
+  getUserById,
+  getAllUsers,
+  getProfile,
+  editProfile,
+  searchUsers,
+  getChatUsers,
+};

@@ -1,17 +1,20 @@
 const messageService = require('../services/messageService');
-const chatService = require('../services/chatService');
+const chatService = require('../service/chatService');
 const auditLogService = require('../services/auditLogService');
 
 exports.sendMessage = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { text } = req.body;
-    const userId = req.user.id;
+    const { content } = req.body;
+    const userId = req.user.userId;
 
-    const message = await messageService.createMessage(chatId, userId, text);
-    await auditLogService.logMessageSent(message);
+    // Create message
+    let message = await messageService.createMessage(chatId, userId, content);
 
-    // Emit to chat members
+    // Populate sender info
+    message = await message.populate('senderId', 'name avatar email');
+
+    // Emit message to all chat members
     const io = req.app.get('io');
     const onlineUsers = req.app.get('onlineUsers');
     const members = await chatService.getChatMembers(chatId);
@@ -24,7 +27,6 @@ exports.sendMessage = async (req, res) => {
         });
       }
     });
-
     res.status(201).json(message);
   } catch (err) {
     console.error('Error sending message:', err);
