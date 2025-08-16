@@ -33,7 +33,9 @@ export const MessageArea = styled(Box)(({ theme }) => ({
 }));
 
 // Message Bubble
-export const MessageBubble = styled(Paper)(({ theme, isOwn }) => ({
+export const MessageBubble = styled(Paper, {
+  shouldForwardProp: (prop) => prop !== "isOwn", // prevent passing down to DOM
+})(({ theme, isOwn }) => ({
   maxWidth: "60%",
   alignSelf: isOwn ? "flex-end" : "flex-start",
   background: isOwn ? "#d1e7dd" : "#fff",
@@ -43,7 +45,6 @@ export const MessageBubble = styled(Paper)(({ theme, isOwn }) => ({
   padding: theme.spacing(1.5),
   position: "relative",
 }));
-
 // Message Input Area
 export const MessageInputArea = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),

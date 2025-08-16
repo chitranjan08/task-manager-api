@@ -57,115 +57,120 @@ const Chat = ({ open, onClose, user }) => {
   const typingTimeoutRef = useRef();
   // --- END OF NEW STATES ---
 
-  useEffect(() => {
-    if (open && user) {
-      console.log("Chat component opened. Fetching chats.");
-      fetchChats();
-    }
+ useEffect(() => {
+    if (open && user) fetchChatsLocal();
   }, [open, user]);
 
+  // --- FETCH USERS FOR CHAT CREATION ---
   useEffect(() => {
     let timeoutId;
     if (open && createChatDialog) {
       setUserSearchLoading(true);
       timeoutId = setTimeout(() => {
-        if (userSearchQuery.trim()) {
-          console.log(`Searching for users with query: ${userSearchQuery}`);
-          fetchUsers(userSearchQuery.trim());
-        } else {
-          console.log("Fetching all chat users.");
-          fetchUsers();
-        }
+        if (userSearchQuery.trim()) fetchUsersLocal(userSearchQuery.trim());
+        else fetchUsersLocal();
       }, 300);
     }
     return () => clearTimeout(timeoutId);
   }, [userSearchQuery, open, createChatDialog]);
 
+  // --- SOCKET LISTENERS ---
   useEffect(() => {
+    // Normalize helper for sender id
+    const getSenderId = (msg) => (typeof msg.senderId === "object" ? msg.senderId._id : msg.senderId);
+
     const handleReceiveMessage = (message) => {
-      console.log("Received new message via socket:", message);
+      // only append if the message belongs to currently selected chat
       if (selectedChat && message.chatId === selectedChat._id) {
-        console.log("Adding new message to current chat.");
-        setMessages((prev) => [...prev, message]);
+        console.log("Received message for selected chat:", message);
+
+        // Avoid duplicate messages (by _id) if already present
+        setMessages(prev => {
+          if (prev.some(m => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
+
+        // Automatically mark delivered if recipient is this user and not the sender
+        const senderId = getSenderId(message);
+        const alreadyDelivered = Array.isArray(message.deliveredTo)
+          ? message.deliveredTo.some(d => String(d.userId) === String(user._id))
+          : false;
+
+        if (senderId !== user._id && !alreadyDelivered) {
+          socket.emit('message:delivered', { messageId: message._id, userId: user._id });
+        }
+      } else {
+        // if message is for another chat, optionally update chat preview/latestMessage
+        // update chats list - ensure chat exists or update its latestMessage
+        setChats(prev => {
+          const idx = prev.findIndex(c => c._id === message.chatId);
+          if (idx !== -1) {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], latestMessage: message };
+            return updated;
+          }
+          return prev;
+        });
       }
-      fetchChats();
+
+      // refresh chat list top-level (keeps last message times consistent)
+      fetchChatsLocal();
     };
 
     const handleChatCreated = (chat) => {
-      console.log("New chat created event received:", chat);
-      setChats((prev) => {
-        if (!prev.some((existingChat) => existingChat._id === chat._id)) {
-          console.log("Adding new chat to the chat list.");
-          return [chat, ...prev];
-        }
-        return prev;
-      });
-
-      if (selectedChat && chat._id === selectedChat._id) {
-        setSelectedChat(chat);
-      }
+      setChats((prev) => (!prev.some((c) => c._id === chat._id) ? [chat, ...prev] : prev));
+      if (selectedChat && chat._id === selectedChat._id) setSelectedChat(chat);
     };
 
-    // --- CORRECTED SOCKET LISTENERS FOR TYPING AND ONLINE USERS ---
     const handleTypingStart = ({ chatId, userId, userName }) => {
-      console.log(`Received typing:start event for chat ${chatId}: ${userName}`);
-      // Don't show typing for yourself
-      if (userId === user._id) {
-        console.log("Ignoring typing event from self.");
-        return;
-      }
-
-      setTypingUsers((prev) => {
-  const currentTypingUsers = new Set(prev[chatId] || []);
-  currentTypingUsers.add(userName || userId);
-  return {
-    ...prev,
-    [chatId]: Array.from(currentTypingUsers),
-  };
-});
+      if (userId === user._id) return;
+      setTypingUsers(prev => {
+        const currentTypingUsers = new Set(prev[chatId] || []);
+        currentTypingUsers.add(userName || userId);
+        return { ...prev, [chatId]: Array.from(currentTypingUsers) };
+      });
     };
 
     const handleTypingStop = ({ chatId, userId, userName }) => {
-      console.log(`Received typing:stop event for chat ${chatId}: ${userName}`);
-      setTypingUsers((prev) => {
+      setTypingUsers(prev => {
         const currentTypingUsers = new Set(prev[chatId] || []);
         currentTypingUsers.delete(userName || userId);
-        return {
-          ...prev,
-          [chatId]: Array.from(currentTypingUsers),
-        };
+        return { ...prev, [chatId]: Array.from(currentTypingUsers) };
       });
     };
 
-    const handleOnlineUsers = (users) => {
-      console.log("Online users list received:", users);
-      setOnlineUsers(users);
-    };
-
-    const handleUserOnline = (userId) => {
-      console.log(`User ${userId} came online.`);
-      setOnlineUsers(prev => [...new Set([...prev, userId])]);
-    };
-
+    const handleOnlineUsers = (users) => setOnlineUsers(users || []);
+    const handleUserOnline = (userId) => setOnlineUsers(prev => Array.from(new Set([...(prev||[]), userId])));
     const handleUserOffline = ({ userId, lastSeen }) => {
-  console.log(`User ${userId} went offline. Last seen: ${lastSeen}`);
-
-  // Remove from online list
-  setOnlineUsers(prev => prev.filter(id => id !== userId));
-
-  // Update lastSeen in selectedChat (if applicable)
-  setSelectedChat(prev => {
-    if (!prev) return prev;
-    return {
-      ...prev,
-      members: prev.members.map(m =>
-        m._id === userId ? { ...m, lastSeen } : m
-      )
+      setOnlineUsers(prev => (prev || []).filter(id => id !== userId));
+      setSelectedChat(prev => prev ? { ...prev, members: prev.members.map(m => m._id === userId ? { ...m, lastSeen } : m) } : prev);
     };
-  });
-};
 
-    // Listeners
+    // --- MESSAGE STATUS (SINGLE/DOUBLE/BLUE TICK) ---
+    // Server emits: { messageId, status: 'delivered'|'read', userId }
+   const handleMessageStatus = ({ messageId, status, userId }) => {
+     setMessages(prev =>
+       prev.map(msg => {
+         if (msg._id !== messageId) return msg;
+
+         const deliveredTo = Array.isArray(msg.deliveredTo) ? [...msg.deliveredTo] : [];
+         const readBy = Array.isArray(msg.readBy) ? [...msg.readBy] : [];
+
+         if (status === 'delivered') {
+           if (!deliveredTo.some(d => String(d.userId) === String(userId))) {
+             deliveredTo.push({ userId, at: new Date().toISOString() });
+           }
+         } else if (status === 'read') {
+           if (!readBy.some(r => String(r.userId) === String(userId))) {
+             readBy.push({ userId, at: new Date().toISOString() });
+           }
+         }
+
+         return { ...msg, deliveredTo, readBy };
+       })
+     );
+   };
+
     socket.on("receiveMessage", handleReceiveMessage);
     socket.on("chat:created", handleChatCreated);
     socket.on("onlineUsers", handleOnlineUsers);
@@ -173,8 +178,8 @@ const Chat = ({ open, onClose, user }) => {
     socket.on("userOffline", handleUserOffline);
     socket.on("typing:start", handleTypingStart);
     socket.on("typing:stop", handleTypingStop);
+    socket.on("messageStatus", handleMessageStatus);
 
-    // Cleanup
     return () => {
       socket.off("receiveMessage", handleReceiveMessage);
       socket.off("chat:created", handleChatCreated);
@@ -183,132 +188,105 @@ const Chat = ({ open, onClose, user }) => {
       socket.off("userOffline", handleUserOffline);
       socket.off("typing:start", handleTypingStart);
       socket.off("typing:stop", handleTypingStop);
-      console.log("Socket listeners cleaned up.");
+      socket.off("messageStatus", handleMessageStatus);
     };
-  }, [selectedChat, chats, user._id]);
+  }, [selectedChat, user._id]);
 
-  useEffect(() => {
-    console.log("Messages state updated. Scrolling to bottom.");
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // --- SCROLL TO BOTTOM WHEN MESSAGES CHANGE ---
+  useEffect(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
 
-  const fetchChats = async () => {
-    try {
-      setLoading(true);
-      console.log("Fetching chats from API...");
-      const res = await axios.get("/chat");
-      setChats(res.data || []);
-      console.log("Chats fetched successfully:", res.data);
-    } catch (err) {
-      setError("Failed to load chats");
-      console.error("Fetch chats error:", err);
-    } finally {
-      setLoading(false);
-    }
+  // --- LOCAL FETCH WRAPPERS (so we can update state here) ---
+  const fetchChatsLocal = async () => {
+    try { setLoading(true); const res = await axios.get("/chat"); setChats(res.data || []); }
+    catch (err) { setError("Failed to load chats"); console.error(err); }
+    finally { setLoading(false); }
   };
 
-  const fetchUsers = async (query = "") => {
+  const fetchUsersLocal = async (query = "") => {
     try {
       setUserSearchLoading(true);
-      console.log("Fetching users from API...");
       const res = query
         ? await axios.get("/users/search", { params: { q: query } })
         : await axios.get("/users/chat-users");
-
       setUsers(res.data.users || res.data || []);
-      console.log("Users fetched successfully:", res.data);
-    } catch (err) {
-      setError("Failed to load users");
-      console.error("Fetch users error:", err);
-    } finally {
-      setUserSearchLoading(false);
-    }
+    } catch (err) { setError("Failed to load users"); console.error(err); }
+    finally { setUserSearchLoading(false); }
   };
 
-  const fetchMessages = async (chatId) => {
+  // --- FETCH MESSAGES ---
+  const fetchMessagesLocal = async (chatId) => {
     try {
-      console.log(`Fetching messages for chat ID: ${chatId}`);
       const res = await axios.get(`/chat/${chatId}/messages`);
-      setMessages(res.data || []);
-      console.log("Messages fetched successfully:", res.data);
-    } catch (err) {
-      setError("Failed to load messages");
-      console.error("Fetch messages error:", err);
-    }
+      const msgs = res.data || [];
+
+      // Mark messages as delivered (only if not sender and not already delivered)
+      msgs.forEach(m => {
+        const senderId = typeof m.senderId === "object" ? m.senderId._id : m.senderId;
+        const alreadyDelivered = Array.isArray(m.deliveredTo)
+          ? m.deliveredTo.some(d => String(d.userId) === String(user._id))
+          : false;
+
+        if (senderId !== user._id && !alreadyDelivered) {
+          socket.emit('message:delivered', { messageId: m._id, userId: user._id });
+        }
+      });
+
+      setMessages(msgs);
+    } catch (err) { setError("Failed to load messages"); console.error(err); }
   };
 
-  const handleChatSelect = (chat) => {
-    console.log("Selected chat:", chat);
-    setSelectedChat(chat);
-    fetchMessages(chat._id);
-  };
+  const handleChatSelect = (chat) => { setSelectedChat(chat); fetchMessagesLocal(chat._id); };
 
+  // --- SEND MESSAGE ---
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat) {
-      console.log("Message is empty or no chat is selected. Aborting send.");
-      return;
-    }
+    if (!newMessage.trim() || !selectedChat) return;
     const messageContent = newMessage;
     setNewMessage("");
-    
-    // Emit a 'typing:stop' event before sending the message
-    console.log("User sent a message, emitting typing:stop.");
-    socket.emit("typing:stop", { 
-      chatId: selectedChat._id, 
-      senderId: user._id, 
-      senderName: user.name 
-    });
-
+    socket.emit("typing:stop", { chatId: selectedChat._id, senderId: user._id, senderName: user.name });
     try {
-      console.log(`Sending message to chat ${selectedChat._id}: "${messageContent}"`);
-      await axios.post(`/chat/${selectedChat._id}/messages`, {
-        content: messageContent,
-      });
-      console.log("Message sent successfully via API.");
-    } catch (err) {
-      setError("Failed to send message");
-      console.error("Send message error:", err);
-    }
+      // send to server; server should broadcast back via receiveMessage
+      await axios.post(`/chat/${selectedChat._id}/messages`, { content: messageContent });
+    } catch (err) { setError("Failed to send message"); console.error(err); }
   };
 
-  // --- HANDLE TYPING EMIT ---
-  const handleTyping = (e) => {
+  // --- TYPING HANDLER ---
+  const handleTypingLocal = (e) => {
     const isTyping = e.target.value.length > 0;
     setNewMessage(e.target.value);
-    
-    console.log(`Typing event: isTyping = ${isTyping}, current value = "${e.target.value}"`);
 
-    // Only emit 'typing:start' if the user wasn't already typing
+    if (!selectedChat) return;
+
     if (isTyping && !typingTimeoutRef.current) {
-      console.log("Emitting typing:start event.");
-      socket.emit("typing", {
-        chatId: selectedChat._id,
-        senderId: user._id,
-        senderName: user.name,
-        isTyping: true,
-      });
+      socket.emit("typing", { chatId: selectedChat._id, senderId: user._id, senderName: user.name, isTyping: true });
     }
-
-    // Clear any existing timeout to "debounce" the event
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      console.log("Typing timeout cleared.");
-    }
-
-    // Set a new timeout to emit 'typing:stop' after 3 seconds of no typing
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      console.log("Typing timeout elapsed (3s). Emitting typing:stop.");
-      socket.emit("typing", {
-        chatId: selectedChat._id,
-        senderId: user._id,
-        senderName: user.name,
-        isTyping: false,
-      });
+      socket.emit("typing", { chatId: selectedChat._id, senderId: user._id, senderName: user.name, isTyping: false });
       typingTimeoutRef.current = null;
     }, 3000);
   };
 
-  const handleCreateChat = async () => {
+  // --- RENDER MESSAGE BUBBLE WITH TICKS ---
+  const renderMessageStatus = (msg) => {
+    console.log("Rendering message status for:", msg);
+    // Only show for own messages
+    const msgSenderId = typeof msg.senderId === "object" ? msg.senderId._id : msg.senderId;
+    if (String(msgSenderId) !== String(user._id)) return null;
+
+    const delivered = Array.isArray(msg.deliveredTo) && msg.deliveredTo.length > 0;
+    const read = Array.isArray(msg.readBy) && msg.readBy.length > 0;
+
+    if (read) {
+      return <span style={{ color: "blue" }}>✓✓</span>; // read
+    }
+    if (delivered) {
+      return "✓✓"; // delivered
+    }
+    return "✓"; // sent (default until delivered comes in)
+  };
+
+
+  const handleCreateChatLocal = async () => {
     if (chatType === "group" && (!groupName || selectedUsers.length < 2)) {
       setError("Group chat requires a name and at least two members.");
       return;
@@ -348,14 +326,14 @@ const Chat = ({ open, onClose, user }) => {
     }
   };
 
-  const handleUserToggle = (userId) => {
+  const handleUserToggleLocal = (userId) => {
     setSelectedUsers((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
     console.log("Toggled user:", userId);
   };
 
-  const getChatDisplayName = (chat) => {
+  const getChatDisplayNameLocal = (chat) => {
     console.log("Getting display name for chat:", chat);
     if (chat.type === "group") return chat.groupName;
     if (!user || !chat.members || chat.members.length < 2) return "Direct Message";
@@ -363,7 +341,7 @@ const Chat = ({ open, onClose, user }) => {
     return otherMember?.name || "Unknown";
   };
 
-  const getChatAvatar = (chat) => {
+  const getChatAvatarLocal = (chat) => {
     if (chat.type === "group") return <Avatar><GroupIcon /></Avatar>;
     if (!user || !chat.members || chat.members.length < 2) return <Avatar>DM</Avatar>;
     const otherMember = chat.members.find((member) => member._id !== user._id);
@@ -373,13 +351,13 @@ const Chat = ({ open, onClose, user }) => {
   };
 
   const filteredChats = chats.filter((chat) =>
-    getChatDisplayName(chat).toLowerCase().includes(searchQuery.toLowerCase())
+    getChatDisplayNameLocal(chat).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredUsers = users.filter((userItem) => userItem._id !== user._id);
 
   // --- TYPING STATUS DISPLAY ---
-  const getTypingStatus = () => {
+  const getTypingStatusLocal = () => {
     if (!selectedChat) return "";
     const typingUsersInChat = typingUsers[selectedChat._id] || [];
     console.log("Current typing users for selected chat:", typingUsersInChat);
@@ -431,7 +409,7 @@ const Chat = ({ open, onClose, user }) => {
                 >
                   <ListItemAvatar>
                     <Box sx={{ position: "relative" }}>
-                      {getChatAvatar(chatItem)}
+                      {getChatAvatarLocal(chatItem)}
                       {otherMember && onlineUsers.includes(otherMember._id) && (
                         <Box
                           sx={{
@@ -451,7 +429,7 @@ const Chat = ({ open, onClose, user }) => {
                   <ListItemText
                     primary={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {getChatDisplayName(chatItem)}
+                        {getChatDisplayNameLocal(chatItem)}
                         {otherMember && onlineUsers.includes(otherMember._id) && (
                           <Typography variant="caption" color="success.main" sx={{ ml: 1 }}>
                             ● Online
@@ -489,11 +467,11 @@ const Chat = ({ open, onClose, user }) => {
           {/* Chat Header */}
           <ChatHeader>
   <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-    {selectedChat && getChatAvatar(selectedChat)}
+    {selectedChat && getChatAvatarLocal(selectedChat)}
    <Box>
   {/* Name */}
   <Typography variant="h6" fontWeight="bold">
-    {selectedChat ? getChatDisplayName(selectedChat) : "Select a chat"}
+    {selectedChat ? getChatDisplayNameLocal(selectedChat) : "Select a chat"}
   </Typography>
 
   {/* Status (online / last seen) */}
@@ -519,10 +497,10 @@ const Chat = ({ open, onClose, user }) => {
     );
   })()}
 
-  {/* Typing indicator */}
-  {getTypingStatus() && (
+  {/* Typing indicator (header) */}
+  {getTypingStatusLocal() && (
     <Typography variant="caption" color="primary">
-      {getTypingStatus()}
+      {getTypingStatusLocal()}
     </Typography>
   )}
 </Box>
@@ -556,7 +534,7 @@ const Chat = ({ open, onClose, user }) => {
                     const senderId = typeof message.senderId === "object" ? message.senderId._id : message.senderId;
                     const senderName = typeof message.senderId === "object" ? message.senderId.name : "";
                     const senderAvatar = typeof message.senderId === "object" ? message.senderId.avatar : "";
-                    const isOwn = user && senderId === user._id;
+                    const isOwn = user && String(senderId) === String(user._id);
                     return (
                       <Box
                         key={message._id}
@@ -568,26 +546,44 @@ const Chat = ({ open, onClose, user }) => {
                         }}
                       >
                         <MessageBubble
-                          isOwn={isOwn}
-                          elevation={0}
-                          sx={{
-                            wordBreak: "break-word",
-                            whiteSpace: "pre-line",
-                            position: "relative",
-                          }}
-                        >
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                            <Avatar src={senderAvatar} sx={{ width: 24, height: 24 }}>
-                              {senderName?.charAt(0)}
-                            </Avatar>
-                            <Typography variant="caption" fontWeight="bold">
-                              {senderName}
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2">
-                            {message.content}
-                          </Typography>
-                        </MessageBubble>
+  isOwn={isOwn}   // <-- only used in styled(), not forwarded to DOM
+  elevation={0}
+  sx={{
+    wordBreak: "break-word",
+    whiteSpace: "pre-line",
+    position: "relative",
+    paddingRight: isOwn ? "24px" : "8px",
+  }}
+>
+  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+    <Avatar src={senderAvatar} sx={{ width: 24, height: 24 }}>
+      {senderName?.charAt(0)}
+    </Avatar>
+    <Typography variant="caption" fontWeight="bold">
+      {senderName}
+    </Typography>
+  </Box>
+
+  <Typography variant="body2">
+    {message.content}
+  </Typography>
+
+  {/* --- Message Status (ticks) --- */}
+  {isOwn && (
+    <Box
+      sx={{
+        position: "absolute",
+        bottom: 2,
+        right: 8,
+        fontSize: 12,
+      }}
+    >
+      {renderMessageStatus(message)}
+    </Box>
+  )}
+</MessageBubble>
+
+
                         <Typography
                           variant="caption"
                           color="text.secondary"
@@ -617,6 +613,33 @@ const Chat = ({ open, onClose, user }) => {
                 </Typography>
               </Box>
             )}
+
+            {/* Inline typing bubble at the bottom of the thread */}
+            {selectedChat && (typingUsers[selectedChat._id]?.length > 0) && (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  backgroundColor: "#f1f5ff",
+                  color: "#6264a7",
+                  width: "fit-content",
+                  maxWidth: "70%",
+                  mt: 1,
+                }}
+              >
+                <Avatar sx={{ width: 20, height: 20 }}>
+                  {(typingUsers[selectedChat._id][0] || "?")?.charAt(0)}
+                </Avatar>
+                <Typography variant="caption" sx={{ whiteSpace: "nowrap" }}>
+                  {getTypingStatusLocal()}
+                </Typography>
+              </Box>
+            )}
+
             <div ref={messagesEndRef} />
           </MessageArea>
 
@@ -718,7 +741,7 @@ const Chat = ({ open, onClose, user }) => {
       size="small"
       placeholder="Type a message..."
       value={newMessage}
-      onChange={handleTyping}
+      onChange={handleTypingLocal}
       onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
       sx={{ borderRadius: 2 }}
     />
@@ -873,7 +896,7 @@ const Chat = ({ open, onClose, user }) => {
                   <ListItemButton
                     key={userItem._id}
                     selected={selectedUsers.includes(userItem._id)}
-                    onClick={() => handleUserToggle(userItem._id)}
+                    onClick={() => handleUserToggleLocal(userItem._id)}
                     sx={{
                       "&:hover": {
                         backgroundColor: selectedUsers.includes(userItem._id)
@@ -911,7 +934,7 @@ const Chat = ({ open, onClose, user }) => {
             setCreateChatDialog(false); setUserSearchQuery(""); setSelectedUsers([]); setGroupName(""); setChatType("direct"); setError("");
           }}>Cancel</Button>
           <Button
-            onClick={handleCreateChat}
+            onClick={handleCreateChatLocal}
             variant="contained"
             disabled={(chatType === "direct" && selectedUsers.length !== 1) || (chatType === "group" && (!groupName || selectedUsers.length < 2))}
           >

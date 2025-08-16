@@ -33,7 +33,7 @@ router.post("/subscribe", async (req, res) => {
 
 router.get("/", verifyToken,async (req, res) => {
   const { userId } = req.user;
- const data =  await notification.find({userId:new mongoose.Types.ObjectId(userId),isRead:false })
+ const data =  await notification.find({userId:new mongoose.Types.ObjectId(userId),isRead:false, type:{$ne:"CHAT_MESSAGE"} })
   res.status(201).json({ message: "Notification list", data:data });
 });
 

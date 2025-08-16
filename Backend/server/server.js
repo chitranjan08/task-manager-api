@@ -22,20 +22,21 @@
   // Register socket events
   io.on('connection', (socket) => {
     console.log(`📡 New socket connected: ${socket.id}`);
-
     // Register user socket
     socket.on('register', (userId) => {
-      if (!userId) return;
+    console.log(userId, "onlineUsers");
 
+      if (!userId) return;
+     
       // Add socket.id to the user's set
-      if (!onlineUsers.has(userId)) {
-        onlineUsers.set(userId, new Set());
+      if (!onlineUsers.has(userId.toString())) {
+        onlineUsers.set(userId.toString(), new Set());
       }
-      onlineUsers.get(userId).add(socket.id);
-      console.log(`✅ User ${userId} registered socket ${socket.id}`);
+      onlineUsers.get(userId.toString()).add(socket.id);
+      console.log(`✅ User ${userId.toString()} registered socket ${socket.id}`);
 
       // Emit to all clients that this user is online
-      io.emit('userOnline', userId);
+      io.emit('userOnline', userId.toString());
 
       // Emit the updated online users list
       io.emit('onlineUsers', Array.from(onlineUsers.keys()));
@@ -87,16 +88,28 @@ socket.on('typing', async ({ chatId, senderId, senderName, isTyping }) => {
 
 
     // Message delivered
-    socket.on('message:delivered', async ({ messageId, userId }) => {
-      await messageService.markDelivered(messageId, userId);
-      const message = await messageService.getMessageById(messageId);
-      const sockets = onlineUsers.get(message.senderId.toString());
-      if (sockets) {
-        sockets.forEach((sockId) => {
-          io.to(sockId).emit('messageStatus', { messageId, status: 'delivered', userId });
-        });
-      }
-    });
+    // Message delivered
+socket.on('message:delivered', async ({ messageId, userId }) => {
+  console.log(`📬 Message delivered: ${messageId} for user ${userId}`);
+
+  const message = await messageService.getMessageById(messageId);
+
+  // ✅ Only mark delivered if userId !== senderId
+  if (message && message.senderId.toString() !== userId.toString()) {
+    await messageService.markDelivered(messageId, userId);
+
+    // Notify sender about delivery
+    const sockets = onlineUsers.get(message.senderId.toString());
+    if (sockets) {
+      sockets.forEach((sockId) => {
+        io.to(sockId).emit('messageStatus', { messageId, status: 'delivered', userId });
+      });
+    }
+  } else {
+    console.log(`⚠️ Ignored delivered event for sender themselves (userId=${userId})`);
+  }
+});
+
 
     // Message read
     socket.on('message:read', async ({ messageId, userId }) => {

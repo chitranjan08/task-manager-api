@@ -1,6 +1,7 @@
 const messageService = require('../services/messageService');
 const chatService = require('../service/chatService');
 const auditLogService = require('../services/auditLogService');
+const produceNotification = require("../kafka/producer");
 
 exports.sendMessage = async (req, res) => {
   try {
@@ -18,7 +19,7 @@ exports.sendMessage = async (req, res) => {
     const io = req.app.get('io');
     const onlineUsers = req.app.get('onlineUsers');
     const members = await chatService.getChatMembers(chatId);
-
+    console.log(`members`, members);
     members.forEach((memberId) => {
       const sockets = onlineUsers.get(memberId.toString());
       if (sockets) {
@@ -27,6 +28,17 @@ exports.sendMessage = async (req, res) => {
         });
       }
     });
+   const recipients = members.filter(id => id.toString() !== userId.toString());
+    for (const recipientId of recipients) {
+      await produceNotification({
+        userId: recipientId, // actual recipient
+        message: `${message.senderId.name}: ${message.content}`,
+        type: "CHAT_MESSAGE",
+        chatId: chatId,
+        senderId: userId,
+        createdAt: new Date().toISOString(),
+      });
+    }
     res.status(201).json(message);
   } catch (err) {
     console.error('Error sending message:', err);

@@ -1,5 +1,6 @@
 const chatService = require('../service/chatService');
 const auditLogService = require('../services/auditLogService'); // your existing logging system
+const produceNotification = require("../kafka/producer");
 
 const Message = require('../models/Message'); // Import your Message model
 
