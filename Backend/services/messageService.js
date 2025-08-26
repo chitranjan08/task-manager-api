@@ -24,7 +24,7 @@ async function getMessages(chatId, before = null, limit = 50) {
 }
 
 async function getMessageById(messageId) {
-  return await Message.findById(messageId).populate('senderId', 'name avatar').lean();
+  return await Message.findById(messageId).populate('senderId', 'name').lean();
 }
 
 async function markDelivered(messageId, userId) {
