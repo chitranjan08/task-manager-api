@@ -22,7 +22,8 @@ router.post('/reset-password', resetPassword)
 
 router.post('/refresh-token', refreshAccessToken);
 
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"], accessType: "offline",   // required for refresh token
+    prompt: "consent" }));
 
 router.get("/google-callback", passport.authenticate("google", { session: false }), async (req, res) => {
  const token = generateAccessToken(req.user._id, req.user.role);

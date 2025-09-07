@@ -29,6 +29,8 @@ const userSchema = new mongoose.Schema(
       default: 'user',
     },
     refreshToken: { type: String },
+    googleAccessToken: String,
+    googleRefreshToken: String,
     resetPasswordToken: String,
     resetPasswordExpires: Date,
     lastSeen: { type: Date, default: null },
